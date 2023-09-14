@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:neptoon/models/webtoon_detail_model.dart';
 import 'package:neptoon/screens/webtoon_episode_model.dart';
 import 'package:neptoon/services/api_service.dart';
+import 'package:neptoon/widgets/episode_widget.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class DetailScreen extends StatefulWidget {
   final String title, thumb, id;
@@ -20,12 +22,44 @@ class DetailScreen extends StatefulWidget {
 class _DetailScreenState extends State<DetailScreen> {
   late Future<WebtoonDetailModel> webtoon;
   late Future<List<WebtoonEpisodeModel>> episodes;
+  late SharedPreferences prefs;
+  bool isLiked = false;
+
+  Future initPrefs() async {
+    prefs = await SharedPreferences.getInstance();
+    final likedToons = prefs.getStringList('likedToons');
+    if (likedToons != null) {
+      if (likedToons.contains(widget.id) == true) {
+        setState(() {
+          isLiked = true;
+        });
+      }
+    } else {
+      await prefs.setStringList('likedToons', []);
+    }
+  }
 
   @override
   void initState() {
     super.initState();
     webtoon = ApiService.getToonById(widget.id);
     episodes = ApiService.getLatestEpisodeById(widget.id);
+    initPrefs();
+  }
+
+  onHeartTap() async {
+    final likedToons = prefs.getStringList('likedToons');
+    if (likedToons != null) {
+      if (isLiked) {
+        likedToons.remove(widget.id);
+      } else {
+        likedToons.add(widget.id);
+      }
+      await prefs.setStringList('likedToons', likedToons);
+      setState(() {
+        isLiked = !isLiked;
+      });
+    }
   }
 
   @override
@@ -43,6 +77,14 @@ class _DetailScreenState extends State<DetailScreen> {
         ),
         foregroundColor: Colors.green,
         backgroundColor: Colors.white,
+        actions: [
+          IconButton(
+            onPressed: onHeartTap,
+            icon: isLiked
+                ? const Icon(Icons.favorite)
+                : const Icon(Icons.favorite_outline),
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         child: Padding(
@@ -118,51 +160,7 @@ class _DetailScreenState extends State<DetailScreen> {
                     return Column(
                       children: [
                         for (var episode in snapshot.data!)
-                          Container(
-                            margin: const EdgeInsets.only(bottom: 15),
-                            decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(20),
-                                boxShadow: [
-                                  BoxShadow(
-                                    blurRadius: 10,
-                                    offset: const Offset(5, 5),
-                                    color: Colors.black.withOpacity(0.3),
-                                  ),
-                                ],
-                                color: Colors.white,
-                                border: Border.all(
-                                  color: Colors.green,
-                                  width: 2,
-                                )),
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                vertical: 10,
-                                horizontal: 40,
-                              ),
-                              child: Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Flexible(
-                                    child: Text(
-                                      episode.title,
-                                      style: const TextStyle(
-                                        color: Colors.black,
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                      overflow: TextOverflow.ellipsis,
-                                      maxLines: 1,
-                                    ),
-                                  ),
-                                  const Icon(
-                                    Icons.chevron_right_rounded,
-                                    color: Colors.black,
-                                  )
-                                ],
-                              ),
-                            ),
-                          )
+                          Episode(episode: episode, webtoonId: widget.id)
                       ],
                     );
                   }
